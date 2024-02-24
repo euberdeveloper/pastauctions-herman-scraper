@@ -83,9 +83,12 @@ def get_auctions_data(page_source, verbose=False, waiting_time=3):
 
             # Clean up the extracted values
             name = re.sub(r'\&amp;', '&', name) if name else 'N/A'
-            if name == 'N/A':
-                full_url_desinence = full_url.split('/')[-1]
-                name = f"{start_date} - offer {full_url_desinence}"
+            if name == "N/A":
+                try:
+                    url_desinence = full_url.split("/")[-2]
+                    name = f"{start_date} - offer {url_desinence}"
+                except:
+                    print(f"Failed to get name from {full_url}")
 
             events.append({
                 'Maison': "Hermans",
@@ -95,6 +98,8 @@ def get_auctions_data(page_source, verbose=False, waiting_time=3):
                 'Location': "Boxmeer",
                 'url': full_url if full_url else "No URL",  # Ensure 'url' key is always present
             })
+
+    events = [event for event in events if not event['url'].endswith('//')]
 
     if verbose:
         print(json.dumps(events, indent=2))
