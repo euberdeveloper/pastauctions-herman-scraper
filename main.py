@@ -77,12 +77,15 @@ def get_auctions_data(page_source, verbose=False, waiting_time=3):
                     start_date = f"{match.group(1)} {match.group(2)} 2024"
                     end_date = f"{match.group(4)} {match.group(5)} 2024"
 
-            # Clean up the extracted values
-            name = re.sub(r'\&amp;', '&', name) if name else 'N/A'
-
             # Attempt to find the URL using regex
             url_match = re.search(r'<a href=\"(/en/offer/[^"]*)\"', event_content)
             full_url = base_url + url_match.group(1) if url_match else None
+
+            # Clean up the extracted values
+            name = re.sub(r'\&amp;', '&', name) if name else 'N/A'
+            if name == 'N/A':
+                full_url_desinence = full_url.split('/')[-1]
+                name = f"{start_date} - offer {full_url_desinence}"
 
             events.append({
                 'Maison': "Hermans",
@@ -117,6 +120,7 @@ def scrape_auction_names(page_source, waiting_time=3):
     auction_names = list(set([
         name 
         for name in re.findall(r'href="/en/offer/([^"/]+)/?"', page_source) 
+        if name != ''
     ]))
     print(f"Found {len(auction_names)} auction names:")
     print(json.dumps(auction_names, indent=2))
@@ -176,14 +180,14 @@ def extract_vehicle_urls(event_name, page_source):
     vehicle_urls = []
     try:
         vehicle_urls = list(set([
-            f"{base_url}{url}"
+            f"{base_url}{url}{'' if url.endswith('/') else '/'}"
             for url in re.findall(rf'href="(/en/offer/{event_name}/[^"/]+/?)"', page_source)
         ]))
     except Exception as e:
         print(f"Error scraping vehicle URLs from {event_name}: {e}")
     return vehicle_urls
 
-def get_new_urls_data(event_name, page_source, verbose=False):
+def get_vehicle_urls_data(event_name, page_source, verbose=False):
     # Get the vehicle urls
     vehicle_urls = extract_vehicle_urls(event_name, page_source)
     print(f"Found {len(vehicle_urls)} vehicles in {event_name}")
@@ -193,7 +197,7 @@ def get_new_urls_data(event_name, page_source, verbose=False):
     # Return the new urls data
     event_url = get_event_url_from_name(event_name)
     return [{
-       "Event URL": event_url,
+       "Event URL": f"{event_url}/",
        "Vehicle URL": url
     } for url in vehicle_urls]
 
@@ -209,7 +213,7 @@ def scrape_auction_vehicle_urls(driver, event_name, new_urls_data, waiting_time=
     page_source = driver.page_source
 
     # Extract and add the vehicle urls and get new urls data
-    new_urls_data.extend(get_new_urls_data(event_name, page_source, verbose=verbose))
+    new_urls_data.extend(get_vehicle_urls_data(event_name, page_source, verbose=verbose))
 
 def scrape_open_auctions(driver, verbose=False):
     # Get the open auctions page source
