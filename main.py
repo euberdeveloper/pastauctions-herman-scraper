@@ -33,8 +33,7 @@ def extract_between(content, start_marker, end_marker):
         return None
     return content[start_index:end_index].strip()
 
-def get_auctions_data(driver, verbose=False, waiting_time=3):
-    auctions_url = f"{base_url}/en/offer/"
+def get_auctions_data(driver, auctions_url, verbose=False, waiting_time=3):
     # Go to page and wait for some seconds
     driver.get(auctions_url)
     time.sleep(waiting_time) 
@@ -114,8 +113,8 @@ def get_chrome_driver(headless=False, webdriver_path=None):
 
     return driver
 
-def scrape_open_event_names(driver, waiting_time=3):
-    print("Getting event urls...")
+def scrape_open_auction_names(driver, waiting_time=3):
+    print("Getting open event names...")
 
     auctions_url = f"{base_url}/en/offer/"
     # Go to page and wait for some seconds
@@ -136,6 +135,28 @@ def scrape_open_event_names(driver, waiting_time=3):
     print(json.dumps(event_names, indent=2))
 
     return event_names
+
+def scrape_all_archive_page_urls(driver, waiting_time=3, verbose=False):
+    print("Getting archived pages urls...")
+
+    archives_url = f"{base_url}/en/offer/archive/"
+    # Go to page and wait for some seconds
+    driver.get(archives_url)
+    time.sleep(waiting_time)
+
+    # Get the the page source and slice only the open ones
+    page_source = driver.page_source
+    archive_page_urls = [
+        f"{base_url}{subpath}"
+        for subpath in re.findall(r'href="(/en/offer/archive([^"/]+)/?"', page_source) 
+    ]
+    archive_page_urls = list(set([archives_url] + archive_page_urls))
+    print(f"Found {len(archive_page_urls)} archive pages")
+    if verbose:
+        print(json.dumps(archive_page_urls, indent=2))
+
+    return archive_page_urls
+
 
 def get_event_url_from_name(name):
     return f"{base_url}/en/offer/{name}"
@@ -165,8 +186,8 @@ def get_new_urls_data(event_name, page_source, verbose=False):
        "Vehicle URL": url
     } for url in vehicle_urls]
 
-def scrape_event(driver, event_name, new_urls_data, waiting_time=3, verbose=False):
-    print(f"Scraping event {event_name}...")
+def scrape_auction_vehicle_urls(driver, event_name, new_urls_data, waiting_time=3, verbose=False):
+    print(f"Scraping event {event_name} vehicle urls...")
 
     event_url = get_event_url_from_name(event_name)
     print(f"Event url is: {event_url}")
@@ -179,25 +200,31 @@ def scrape_event(driver, event_name, new_urls_data, waiting_time=3, verbose=Fals
     # Extract and add the vehicle urls and get new urls data
     new_urls_data.extend(get_new_urls_data(event_name, page_source, verbose=verbose))
 
-def scrape_events(verbose=False):
+def scrape_open_auctions(driver, verbose=False):
+    # Get auctions data
+    open_auctions_details = get_auctions_data(driver, f"{base_url}/en/offer/", verbose=verbose)
+
+    # Result arrays
+    open_auctions_vehicle_urls = []
+
+    open_auction_names = scrape_open_auction_names(driver)
+    for open_auction_name in open_auction_names:
+        scrape_auction_vehicle_urls(driver, open_auction_name, open_auctions_vehicle_urls, verbose=verbose)
+
+    return open_auctions_vehicle_urls, open_auctions_details
+
+def scrape_auctions(verbose=False):
     # Get chrome driver
     driver = get_chrome_driver() # ES. get_chrome_driver(headless=True, webdriver_path='PATH_TO_CHROMEDRIVER')
 
-    # Get auctions data
-    # events_data = get_auctions_data(driver, verbose=verbose)
-
-    # Result arrays
-    urls_data = []
     # Scrape everything; If the process fails, the driver will be closed
     try:
-        open_event_names = scrape_open_event_names(driver)
-        for open_event_name in open_event_names:
-            scrape_event(driver, open_event_name, urls_data, verbose=verbose)
+        open_auctions_vehicle_urls, open_auctions_details = scrape_open_auctions(driver, verbose=verbose)
     finally:
         driver.quit()
 
     # Return the results
-    return urls_data, events_data
+    return open_auctions_vehicle_urls, open_auctions_details
 
 def save_results(urls_data, auctions_data, save_path):
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -205,10 +232,10 @@ def save_results(urls_data, auctions_data, save_path):
     save_to_excel(auctions_data, urls_data, save_path)
     
 def main(verbose=False):
-    urls_data, auctions_data = scrape_events(verbose=verbose)
-    print(f"Scraped {len(urls_data)} new urls and {len(auctions_data)} new auctions")
+    open_auctions_vehicle_urls, open_auctions_details = scrape_auctions(verbose=verbose)
+    print(f"Scraped {len(open_auctions_vehicle_urls)} open vehicle URLs and {len(open_auctions_details)} open auctions")
 
-    save_results(urls_data, auctions_data, save_path_prefix)
+    save_results(open_auctions_vehicle_urls, open_auctions_details, save_path_prefix)
     print(f"Results saved to {save_path_prefix}")
 
 if __name__ == "__main__":
