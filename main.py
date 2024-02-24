@@ -6,6 +6,7 @@ import json
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
+from webdriver_manager.chrome import ChromeDriverManager
 
 # Specify the folder of where the output will be saved
 save_path_prefix = '/home/euberdeveloper/Github/pastauctions-herman-scraper'
@@ -112,11 +113,8 @@ def get_chrome_driver(headless=False, webdriver_path=None):
     if headless:
         chrome_options.add_argument("--headless")
 
-    if webdriver_path:
-        service = Service(webdriver_path)
-        driver = webdriver.Chrome(service=service, options=chrome_options)
-    else:
-        driver = webdriver.Chrome(options=chrome_options)
+    service = Service(ChromeDriverManager().install())
+    driver = webdriver.Chrome(service=service, options=chrome_options)
 
     return driver
 

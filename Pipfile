@@ -6,9 +6,9 @@ name = "pypi"
 [packages]
 pandas = "*"
 joblib = "*"
-undetected-chromedriver = "*"
 selenium = "*"
 openpyxl = "*"
+webdriver-manager = "*"
 
 [dev-packages]
 
