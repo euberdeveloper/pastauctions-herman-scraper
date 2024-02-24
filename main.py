@@ -114,7 +114,7 @@ def get_chrome_driver(headless=False, webdriver_path=None):
 
     return driver
 
-def scrape_event_names(driver, waiting_time=3):
+def scrape_open_event_names(driver, waiting_time=3):
     print("Getting event urls...")
 
     auctions_url = f"{base_url}/en/offer/"
@@ -122,11 +122,14 @@ def scrape_event_names(driver, waiting_time=3):
     driver.get(auctions_url)
     time.sleep(waiting_time) 
 
-    # Get the names from the page source, without duplicates and the special "archive" one
+    # Get the the page source and slice only the open ones
     page_source = driver.page_source
+    open_events_source = "\n".join(re.findall(r'<!-- vandaag in de veiling -->(.*)<!-- gesloten veilingen -->', page_source, re.DOTALL))
+
+    # Get the event names without duplicates and the special "archive" one
     event_names = list(set([
-        name
-        for name in re.findall(r'href="/en/offer/([^"/]+)/?"', page_source) 
+        name 
+        for name in re.findall(r'href="/en/offer/([^"/]+)/?"', open_events_source) 
         if "archive" not in name
     ]))
     print(f"Found {len(event_names)} events:")
@@ -140,10 +143,10 @@ def get_event_url_from_name(name):
 def extract_vehicle_urls(event_name, page_source):
     vehicle_urls = []
     try:
-        vehicle_urls = [
+        vehicle_urls = list(set([
             f"{base_url}{url}"
             for url in re.findall(rf'href="(/en/offer/{event_name}/[^"/]+/?)"', page_source)
-        ]
+        ]))
     except Exception as e:
         print(f"Error scraping vehicle URLs from {event_name}: {e}")
     return vehicle_urls
@@ -181,15 +184,15 @@ def scrape_events(verbose=False):
     driver = get_chrome_driver() # ES. get_chrome_driver(headless=True, webdriver_path='PATH_TO_CHROMEDRIVER')
 
     # Get auctions data
-    events_data = get_auctions_data(driver, verbose=verbose)
+    # events_data = get_auctions_data(driver, verbose=verbose)
 
     # Result arrays
     urls_data = []
     # Scrape everything; If the process fails, the driver will be closed
     try:
-        event_names = scrape_event_names(driver)
-        for event_name in event_names:
-            scrape_event(driver, event_name, urls_data, verbose=verbose)
+        open_event_names = scrape_open_event_names(driver)
+        for open_event_name in open_event_names:
+            scrape_event(driver, open_event_name, urls_data, verbose=verbose)
     finally:
         driver.quit()
 
