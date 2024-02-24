@@ -15,12 +15,14 @@ Some adjustemnts:
 
 ## What does it do
 
-The script gets the auctions information and for each auction it gets the urls to the car lots. The result is an excel file with two sheets, one for the auctions and another for the car lots.
+The script gets the auctions information and for each auction it gets the urls to the car lots. Everything is divided into archived auctions and current/future actions. The result is an excel file with four sheets, one for the auctions and another for the car lots, for both archived and new auctions. 
 
 In `example_result` some example files are available.
 
 ## More technical notes
 
 The script uses Selenium to navigate the website and get the information. It uses the Chrome webdriver, but it can be easily changed to another one.
+
+To get only the new auctions from the offer page, two special comments (in dutch) are used. To get all the archived auctions, all the pages in the archive page are visited.
 
 To get the information about the urls, some regexps are used. The script is not very robust and may break if the website changes. It is recommended to check the website structure and the script if it stops working.
