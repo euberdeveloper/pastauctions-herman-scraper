@@ -1,12 +1,8 @@
 import pandas as pd
 import re
-import time
 from datetime import datetime
 import json
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
-from webdriver_manager.chrome import ChromeDriverManager
+import requests
 
 # Specify the folder of where the output will be saved
 save_path_prefix = '/home/euberdeveloper/Github/pastauctions-herman-scraper'
@@ -40,7 +36,7 @@ def extract_between(content, start_marker, end_marker):
         return None
     return content[start_index:end_index].strip()
 
-def get_auctions_data(page_source, verbose=False, waiting_time=3):
+def get_auctions_data(page_source, verbose=False):
     # Not written by me...
     events = []
 
@@ -78,12 +74,15 @@ def get_auctions_data(page_source, verbose=False, waiting_time=3):
                     start_date = f"{match.group(1)} {match.group(2)} 2024"
                     end_date = f"{match.group(4)} {match.group(5)} 2024"
 
+            
+
             # Attempt to find the URL using regex
             url_match = re.search(r'<a href=\"(/en/offer/[^"]*)\"', event_content)
             full_url = base_url + url_match.group(1) if url_match else None
 
             # Clean up the extracted values
             name = re.sub(r'\&amp;', '&', name) if name else 'N/A'
+
             if name == "N/A":
                 try:
                     url_desinence = full_url.split("/")[-2]
@@ -108,35 +107,30 @@ def get_auctions_data(page_source, verbose=False, waiting_time=3):
     return events
 ###########################
 
-def get_chrome_driver(headless=False, webdriver_path=None):
-    chrome_options = Options()
-    if headless:
-        chrome_options.add_argument("--headless")
+def get_html_from_url(url):
+    response = requests.get(url)
 
-    service = Service(ChromeDriverManager().install())
-    driver = webdriver.Chrome(service=service, options=chrome_options)
+    if response.status_code != 200:
+        print(f"Failed to get HTML from {url}")
+        return ''
 
-    return driver
+    return response.text
 
-def scrape_auction_names(page_source, waiting_time=3):
+def scrape_auction_names(page_source):
     # Get the auction names without duplicates and the special "archive" one
     auction_names = list(set([
         name 
         for name in re.findall(r'href="/en/offer/([^"/]+)/?"', page_source) 
-        if name != ''
+        if name
     ]))
     print(f"Found {len(auction_names)} auction names:")
     print(json.dumps(auction_names, indent=2))
 
     return auction_names
 
-def get_auctions_page_source(driver, url, only_open, waiting_time=3, verbose=False):
-    # Go to page and wait for some seconds
-    driver.get(url)
-    time.sleep(waiting_time) 
-
+def get_auctions_page_source(url, only_open, verbose=False):
     # Get the the page source and slice only the open ones
-    page_source = driver.page_source
+    page_source = get_html_from_url(url)
     if only_open:
         page_source = "\n".join(re.findall(r'<!-- vandaag in de veiling -->(.*)<!-- gesloten veilingen -->', page_source, re.DOTALL)) 
     if verbose:
@@ -144,24 +138,21 @@ def get_auctions_page_source(driver, url, only_open, waiting_time=3, verbose=Fal
         
     return page_source
 
-def scrape_open_auction_names(page_source, waiting_time=3):
+def scrape_open_auction_names(page_source):
     print("Getting open auctions names...")
     return scrape_auction_names(page_source)
 
-def scrape_archive_auction_names(page_source, archive_page_url, waiting_time=3):
+def scrape_archive_auction_names(page_source, archive_page_url):
     print(f"Getting archive auctions names from {archive_page_url}...")
     return scrape_auction_names(page_source)
 
-def scrape_all_archive_page_urls(driver, waiting_time=3, verbose=False):
+def scrape_all_archive_page_urls(verbose=False):
     print("Getting archived pages urls...")
 
     archives_url = f"{base_url}/en/offer/archive/"
-    # Go to page and wait for some seconds
-    driver.get(archives_url)
-    time.sleep(waiting_time)
 
     # Get the the page source and slice only the open ones
-    page_source = driver.page_source
+    page_source = get_html_from_url(archives_url)
     archive_page_indexes = sorted(list(set([
         int(page_index)
         for page_index in re.findall(r'href="/en/offer/archive/(\d+)/?"', page_source) 
@@ -190,7 +181,7 @@ def extract_vehicle_urls(event_name, page_source):
         print(f"Error scraping vehicle URLs from {event_name}: {e}")
     return vehicle_urls
 
-def get_vehicle_urls_data(event_name, page_source, verbose=False):
+def get_new_urls_data(event_name, page_source, verbose=False):
     # Get the vehicle urls
     vehicle_urls = extract_vehicle_urls(event_name, page_source)
     print(f"Found {len(vehicle_urls)} vehicles in {event_name}")
@@ -204,23 +195,20 @@ def get_vehicle_urls_data(event_name, page_source, verbose=False):
        "Vehicle URL": url
     } for url in vehicle_urls]
 
-def scrape_auction_vehicle_urls(driver, event_name, new_urls_data, waiting_time=3, verbose=False):
+def scrape_auction_vehicle_urls(event_name, new_urls_data, verbose=False):
     print(f"Scraping event {event_name} vehicle urls...")
 
     event_url = get_event_url_from_name(event_name)
     print(f"Event url is: {event_url}")
 
-    # Go to page, wait for some seconds and get page source
-    driver.get(event_url)
-    time.sleep(waiting_time)
-    page_source = driver.page_source
+    page_source = get_html_from_url(event_url)
 
     # Extract and add the vehicle urls and get new urls data
-    new_urls_data.extend(get_vehicle_urls_data(event_name, page_source, verbose=verbose))
+    new_urls_data.extend(get_new_urls_data(event_name, page_source, verbose=verbose))
 
-def scrape_open_auctions(driver, verbose=False):
+def scrape_open_auctions(verbose=False):
     # Get the open auctions page source
-    open_auctions_source = get_auctions_page_source(driver, f"{base_url}/en/offer/", only_open=True, verbose=verbose)
+    open_auctions_source = get_auctions_page_source(f"{base_url}/en/offer/", only_open=True, verbose=verbose)
 
     # Get auctions data
     open_auctions_details = get_auctions_data(open_auctions_source, verbose=verbose)
@@ -229,40 +217,31 @@ def scrape_open_auctions(driver, verbose=False):
     open_auctions_vehicle_urls = []
     open_auction_names = scrape_open_auction_names(open_auctions_source)
     for open_auction_name in open_auction_names:
-        scrape_auction_vehicle_urls(driver, open_auction_name, open_auctions_vehicle_urls, verbose=verbose)
+        scrape_auction_vehicle_urls(open_auction_name, open_auctions_vehicle_urls, verbose=verbose)
 
     return open_auctions_vehicle_urls, open_auctions_details
 
-def scraper_archive_auctions(driver, verbose=False):
-    archive_page_urls = scrape_all_archive_page_urls(driver, verbose=verbose)
+def scraper_archive_auctions(verbose=False):
+    archive_page_urls = scrape_all_archive_page_urls(verbose=verbose)
 
     archive_auction_vehicle_urls = []
     archive_auctions_details = []
 
     for archive_page_url in archive_page_urls:
-        page_source = get_auctions_page_source(driver, archive_page_url, only_open=False, verbose=verbose)
+        page_source = get_auctions_page_source(archive_page_url, only_open=False, verbose=verbose)
 
         auctions_details = get_auctions_data(page_source, verbose=verbose)
         archive_auctions_details.extend(auctions_details)
 
         archive_auction_names = scrape_archive_auction_names(page_source, archive_page_url)
         for archive_auction_name in archive_auction_names:
-            scrape_auction_vehicle_urls(driver, archive_auction_name, archive_auction_vehicle_urls, verbose=verbose)
+            scrape_auction_vehicle_urls(archive_auction_name, archive_auction_vehicle_urls, verbose=verbose)
 
     return archive_auction_vehicle_urls, archive_auctions_details
         
 def scrape_auctions(verbose=False):
-    # Get chrome driver
-    driver = get_chrome_driver() # ES. get_chrome_driver(headless=True, webdriver_path='PATH_TO_CHROMEDRIVER')
-
-    # Scrape everything; If the process fails, the driver will be closed
-    try:
-        open_auctions_vehicle_urls, open_auctions_details = scrape_open_auctions(driver, verbose=verbose)
-        archive_auction_vehicle_urls, archive_auctions_details = scraper_archive_auctions(driver, verbose=verbose)
-    finally:
-        driver.quit()
-
-    # Return the results
+    open_auctions_vehicle_urls, open_auctions_details = scrape_open_auctions(verbose=verbose)
+    archive_auction_vehicle_urls, archive_auctions_details = scraper_archive_auctions(verbose=verbose)
     return open_auctions_vehicle_urls, open_auctions_details, archive_auction_vehicle_urls, archive_auctions_details
 
 def save_results(open_auctions_vehicle_urls, open_auctions_details, archive_auction_vehicle_urls, archive_auctions_details, save_path):

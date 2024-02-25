@@ -5,10 +5,8 @@ name = "pypi"
 
 [packages]
 pandas = "*"
-joblib = "*"
-selenium = "*"
 openpyxl = "*"
-webdriver-manager = "*"
+requests = "*"
 
 [dev-packages]
 

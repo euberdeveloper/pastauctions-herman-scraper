@@ -26,3 +26,7 @@ The script uses Selenium to navigate the website and get the information. It use
 To get only the new auctions from the offer page, two special comments (in dutch) are used. To get all the archived auctions, all the pages in the archive page are visited.
 
 To get the information about the urls, some regexps are used. The script is not very robust and may break if the website changes. It is recommended to check the website structure and the script if it stops working.
+
+# Update
+
+Since the website doesn't do any complication with cookies or blocks, a drastical improvement for the performance has been done. The code has been refactored so that selenium and a browser are not used anymore. Instead, the requests library is used to get the content of the pages.
